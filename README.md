@@ -28,7 +28,7 @@ Clone the project
 Go to the project directory
 
 ```bash
-  cd be-auth
+  cd be-auth-main
 ```
 
 Install dependencies
