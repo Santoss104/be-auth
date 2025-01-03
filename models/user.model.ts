@@ -14,6 +14,14 @@ export interface IUser extends Document {
     public_id: string;
     url: string;
   };
+  socialLinks?: {
+    github?: string;
+    twitter?: string;
+    facebook?: string;
+    instagram?: string;
+    figma?: string;
+    devCommunity?: string;
+  };
   isVerified: boolean;
   comparePassword: (password: string) => Promise<boolean>;
 }
@@ -43,6 +51,32 @@ const userSchema: Schema<IUser> = new mongoose.Schema(
     avatar: {
       public_id: String,
       url: String,
+    },
+    socialLinks: {
+      github: {
+        type: String,
+        default: "",
+      },
+      twitter: {
+        type: String,
+        default: "",
+      },
+      facebook: {
+        type: String,
+        default: "",
+      },
+      instagram: {
+        type: String,
+        default: "",
+      },
+      figma: {
+        type: String,
+        default: "",
+      },
+      devCommunity: {
+        type: String,
+        default: "",
+      },
     },
     isVerified: {
       type: Boolean,

@@ -4,6 +4,7 @@ import userModel from "../models/user.model";
 import ErrorHandler from "../utils/errorHandler";
 import { CatchAsyncError } from "../middleware/catchAsyncErrors";
 import { getAllUsersService, getUserById } from "../services/user.services";
+import jwt from "jsonwebtoken";
 
 dotenv.config();
 
@@ -87,6 +88,8 @@ export const loginUser = CatchAsyncError(
 export const logoutUser = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Since we're using token-based auth, we just send success response
+      // The frontend will remove the token
       res.status(200).json({
         success: true,
         message: "Logged out successfully",
@@ -97,16 +100,52 @@ export const logoutUser = CatchAsyncError(
   }
 );
 
-// get user info
+// Middleware to get user from token
+const getUserFromToken = async (req: Request) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    throw new Error('No token provided');
+  }
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { id: string };
+  const user = await userModel.findById(decoded.id);
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+  
+  return user;
+};
+
+// get user info - now using token
 export const getUserInfo = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = await userModel.findOne();  // user pertama
-      // const user = await userModel.find(); // Mengambil semua user
+      const user = await getUserFromToken(req);
       
-      if (!user) {
-        return next(new ErrorHandler("User not found", 404));
+      res.status(200).json({
+        success: true,
+        user,
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 401));
+    }
+  }
+);
+
+// Update user info - now using token
+export const updateUserInfo = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = await getUserFromToken(req);
+      const { name } = req.body;
+      
+      if (name) {
+        user.name = name;
       }
+
+      await user.save();
 
       res.status(200).json({
         success: true,
@@ -118,65 +157,15 @@ export const getUserInfo = CatchAsyncError(
   }
 );
 
-interface ISocialAuthBody {
-  email: string;
-  name: string;
-  avatar: string;
-}
-
-// update user info
-interface IUpdateUserInfo {
-  name?: string;
-  email?: string;
-}
-
-// Update user info
-export const updateUserInfo = CatchAsyncError(
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { email, name } = req.body;
-      
-      const user = await userModel.findOne({ email });
-
-      if (!user) {
-        return next(new ErrorHandler("User not found", 404));
-      }
-
-      if (name) {
-        user.name = name;
-      }
-
-      await user.save();
-
-      res.status(201).json({
-        success: true,
-        user,
-      });
-    } catch (error: any) {
-      return next(new ErrorHandler(error.message, 400));
-    }
-  }
-);
-
-interface IUpdatePassword {
-  email: string;
-  oldPassword: string;
-  newPassword: string;
-}
-
+// Update password - now using token
 export const updatePassword = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { email, oldPassword, newPassword } = req.body as IUpdatePassword;
+      const user = await getUserFromToken(req);
+      const { oldPassword, newPassword } = req.body;
 
       if (!oldPassword || !newPassword) {
         return next(new ErrorHandler("Please enter old and new password", 400));
-      }
-
-      const user = await userModel.findOne({ email }).select("+password");
-
-      if (!user) {
-        return next(new ErrorHandler("Invalid user", 400));
       }
 
       const isPasswordMatch = await user.comparePassword(oldPassword);
@@ -186,12 +175,11 @@ export const updatePassword = CatchAsyncError(
       }
 
       user.password = newPassword;
-
       await user.save();
 
-      res.status(201).json({
+      res.status(200).json({
         success: true,
-        user,
+        message: "Password updated successfully"
       });
     } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));
